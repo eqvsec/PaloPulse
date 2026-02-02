@@ -19,7 +19,7 @@ Real-time cybersecurity threat visualization dashboard for Palo Alto Networks fi
 
 ## Screenshot
 
-![PaloPulse Dashboard](screenshot.png)
+![PaloPulse Dashboard](screenshot.PNG)
 
 *PaloPulse dashboard showing real-time Layer 7 threat detection with global attack visualization, threat categories, and defended asset statistics.*
 
