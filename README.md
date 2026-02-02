@@ -17,6 +17,12 @@ Real-time cybersecurity threat visualization dashboard for Palo Alto Networks fi
 - ⚡ **High Performance** - Async processing, DNS caching, efficient GeoIP lookups
 - 🔍 **CSV-Safe Parsing** - Handles quoted fields with commas in syslog data
 
+## Screenshot
+
+![PaloPulse Dashboard](screenshot.png)
+
+*PaloPulse dashboard showing real-time Layer 7 threat detection with global attack visualization, threat categories, and defended asset statistics.*
+
 ## Directory Structure
 
 ```
