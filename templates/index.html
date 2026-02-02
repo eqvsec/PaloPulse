@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ app_title }}</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    
+    <style>
+        body { background-color: #050505; color: #ccc; font-family: 'Courier New', Courier, monospace; margin: 0; overflow: hidden; }
+        #map { height: 60vh; width: 100%; z-index: 1; border-bottom: 2px solid #333; }
+        .dashboard { display: flex; height: 40vh; background: #0a0a0a; }
+        .panel { padding: 0; border-right: 1px solid #333; overflow-y: auto; position: relative; }
+        #stream-panel { flex: 4; } 
+        #stats-panel { flex: 1; display: flex; flex-direction: column; }
+        .stats-half { flex: 1; overflow-y: auto; border-bottom: 1px solid #333; padding: 10px;}
+        
+        h2 { margin: 0 0 10px 0; padding-bottom: 5px; text-transform: uppercase; font-size: 0.9rem; letter-spacing: 1px; }
+        .red-team h2 { color: #ff0055; border-bottom: 1px solid #ff0055; }
+        .blue-team h2 { color: #00e5ff; border-bottom: 1px solid #00e5ff; }
+
+        .title-overlay {
+            position: absolute; top: 10px; right: 10px; z-index: 1000;
+            background: rgba(0, 0, 0, 0.7); border: 1px solid #333;
+            padding: 10px 20px; text-align: right; pointer-events: auto;
+        }
+        .title-overlay h1 { margin: 0; font-size: 1.4rem; color: #fff; text-shadow: 0 0 5px #00ff41; }
+        .title-overlay p { margin: 0; font-size: 0.8rem; color: #888; text-transform: uppercase; }
+        .title-overlay .uptime { font-size: 0.7rem; color: #555; margin-top: 5px; border-top: 1px solid #333; padding-top: 5px;}
+
+        /* Toggle Switch Styling */
+        .mode-toggle {
+            margin-top: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 10px;
+            padding-top: 8px;
+            border-top: 1px solid #333;
+        }
+        
+        .toggle-label {
+            font-size: 0.7rem;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .toggle-label.active {
+            color: #00ff41;
+            font-weight: bold;
+        }
+        
+        .toggle-switch {
+            position: relative;
+            width: 50px;
+            height: 24px;
+            background: #222;
+            border: 1px solid #444;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        
+        .toggle-switch.threat-mode {
+            background: #ff0055;
+        }
+        
+        .toggle-slider {
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 18px;
+            height: 18px;
+            background: #fff;
+            border-radius: 50%;
+            transition: transform 0.3s;
+            box-shadow: 0 0 5px rgba(0,255,65,0.5);
+        }
+        
+        .toggle-switch.threat-mode .toggle-slider {
+            transform: translateX(26px);
+        }
+
+        table { width: 100%; border-collapse: collapse; font-size: 0.75rem; table-layout: fixed; }
+        th { text-align: left; background: #111; color: #888; padding: 6px; position: sticky; top: 0; z-index: 10; border-bottom: 1px solid #333; }
+        td { padding: 4px 6px; border-bottom: 1px solid #1a1a1a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        
+        /* Traffic Mode Columns */
+        .traffic-mode th:nth-child(1) { width: 70px; }
+        .traffic-mode th:nth-child(2) { width: 18%; }
+        .traffic-mode th:nth-child(3) { width: 18%; }
+        .traffic-mode th:nth-child(4) { width: 18%; }
+        .traffic-mode th:nth-child(5) { width: 15%; }
+        .traffic-mode th:nth-child(6) { width: 13%; }
+        
+        /* Threat Mode Columns */
+        .threat-mode th:nth-child(1) { width: 70px; }
+        .threat-mode th:nth-child(2) { width: 15%; }
+        .threat-mode th:nth-child(3) { width: 15%; }
+        .threat-mode th:nth-child(4) { width: 15%; }
+        .threat-mode th:nth-child(5) { width: 25%; }
+        .threat-mode th:nth-child(6) { width: 10%; }
+        .threat-mode th:nth-child(7) { width: 12%; }
+
+        tr.new-row { animation: flash 0.5s; }
+        @keyframes flash { 0% { background-color: #222; } 100% { background-color: transparent; } }
+
+        .severity-badge {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 0.7rem;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        
+        .severity-critical { background: #ff0000; color: #fff; }
+        .severity-high { background: #ff6600; color: #fff; }
+        .severity-medium { background: #ffaa00; color: #000; }
+        .severity-low { background: #4a90e2; color: #fff; }
+
+        ul { list-style: none; padding: 0; margin: 0; }
+        li { padding: 3px 0; border-bottom: 1px solid #1a1a1a; font-size: 0.8rem; display: flex; justify-content: space-between; }
+        
+        .leaflet-div-icon { background: transparent; border: none; }
+        .home-marker { width: 12px; height: 12px; background: #00e5ff; border-radius: 50%; box-shadow: 0 0 15px #00e5ff; border: 2px solid #fff; }
+        
+        .dynamic-pulse { width: 10px; height: 10px; border-radius: 50%; animation: pulse 2s infinite; }
+        @keyframes pulse { 0% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(2.5); } }
+        
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-thumb { background: #333; }
+        ::-webkit-scrollbar-track { background: #0a0a0a; }
+    </style>
+</head>
+<body>
+    <div class="title-overlay">
+        <h1 id="dashboard-title">{{ app_title }}</h1>
+        <p id="dashboard-subtitle">{{ app_subtitle }}</p>
+        <p class="uptime" id="session-timer">INITIALIZING...</p>
+        
+        {% if traffic_enabled and threat_enabled %}
+        <div class="mode-toggle">
+            <span class="toggle-label active" id="traffic-label">LAYER 3/4</span>
+            <div class="toggle-switch" id="mode-toggle" onclick="toggleMode()">
+                <div class="toggle-slider"></div>
+            </div>
+            <span class="toggle-label" id="threat-label">LAYER 7</span>
+        </div>
+        {% endif %}
+    </div>
+
+    <div id="map"></div>
+
+    <div class="dashboard">
+        <div class="panel" id="stream-panel">
+            <table id="event-table" class="traffic-mode">
+                <thead id="table-header">
+                    <!-- Dynamic headers based on mode -->
+                </thead>
+                <tbody id="log-body"></tbody>
+            </table>
+        </div>
+        
+        <div class="panel" id="stats-panel">
+            <div class="stats-half red-team">
+                <h2 id="threats-heading">Active Threats</h2>
+                <ul id="country-list"></ul>
+            </div>
+            <div class="stats-half blue-team">
+                <h2 id="targets-heading">Defended Assets</h2>
+                <ul id="target-list"></ul>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+
+    <script>
+        const TRAFFIC_ENABLED = {{ 'true' if traffic_enabled else 'false' }};
+        const THREAT_ENABLED = {{ 'true' if threat_enabled else 'false' }};
+        
+        let currentMode = 'traffic';
+        let countryStats = {}; 
+        let targetStats = {};
+        let threatCategoryStats = {};
+
+        function startSessionTimer() {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString();
+            document.getElementById('session-timer').innerText = "MONITORING STARTED: " + timeString;
+        }
+        startSessionTimer();
+
+        const HOME_LAT = {{ home_lat }};
+        const HOME_LON = {{ home_lon }};
+
+        var map = L.map('map', {zoomControl: false}).setView([25, 10], 2);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; CARTO',
+            subdomains: 'abcd',
+            maxZoom: 19
+        }).addTo(map);
+
+        L.marker([HOME_LAT, HOME_LON], {
+            icon: L.divIcon({
+                className: 'custom-icon',
+                html: '<div class="home-marker"></div>',
+                iconSize: [12, 12],
+                iconAnchor: [6, 6]
+            })
+        }).addTo(map);
+
+        function getFlagEmoji(countryCode) {
+            if (countryCode === 'ZON') return '🌐';
+            if (!countryCode) return '🏴‍☠️'; 
+            const codePoints = countryCode.toUpperCase().split('').map(char =>  127397 + char.charCodeAt());
+            return String.fromCodePoint(...codePoints);
+        }
+
+        function updateTableHeaders() {
+            const header = document.getElementById('table-header');
+            
+            if (currentMode === 'traffic') {
+                header.innerHTML = `
+                    <tr>
+                        <th>TIME</th>
+                        <th>COUNTRY</th>
+                        <th>SOURCE IP</th>
+                        <th>TARGET HOST</th>
+                        <th>APP</th>
+                        <th>SERVICE</th>
+                    </tr>
+                `;
+                document.getElementById('event-table').className = 'traffic-mode';
+                document.getElementById('dashboard-subtitle').innerText = 'PERIMETER DEFENSE // LAYER 3/4 BLOCKS';
+                document.getElementById('threats-heading').innerText = 'Active Threats';
+            } else {
+                header.innerHTML = `
+                    <tr>
+                        <th>TIME</th>
+                        <th>COUNTRY</th>
+                        <th>SOURCE IP</th>
+                        <th>TARGET HOST</th>
+                        <th>THREAT SIGNATURE</th>
+                        <th>SEVERITY</th>
+                        <th>CATEGORY</th>
+                    </tr>
+                `;
+                document.getElementById('event-table').className = 'threat-mode';
+                document.getElementById('dashboard-subtitle').innerText = 'ACTIVE THREAT INTERCEPTION // LAYER 7';
+                document.getElementById('threats-heading').innerText = 'Threat Categories';
+            }
+        }
+
+        function toggleMode() {
+            if (!TRAFFIC_ENABLED || !THREAT_ENABLED) return;
+            
+            currentMode = currentMode === 'traffic' ? 'threat' : 'traffic';
+            
+            const toggle = document.getElementById('mode-toggle');
+            const trafficLabel = document.getElementById('traffic-label');
+            const threatLabel = document.getElementById('threat-label');
+            
+            if (currentMode === 'threat') {
+                toggle.classList.add('threat-mode');
+                trafficLabel.classList.remove('active');
+                threatLabel.classList.add('active');
+            } else {
+                toggle.classList.remove('threat-mode');
+                trafficLabel.classList.add('active');
+                threatLabel.classList.remove('active');
+            }
+            
+            document.getElementById('log-body').innerHTML = '';
+            countryStats = {};
+            targetStats = {};
+            threatCategoryStats = {};
+            
+            updateTableHeaders();
+            updateLeaderboards();
+        }
+
+        updateTableHeaders();
+
+        var socket = io();
+
+        socket.on('threat_event', function(data) {
+            if (data.log_type !== currentMode) return;
+            
+            var eventColor = data.color; 
+            
+            var customIcon = L.divIcon({
+                className: '',
+                html: `<div class="dynamic-pulse" style="background-color: ${eventColor}; box-shadow: 0 0 10px ${eventColor};"></div>`,
+                iconSize: [10, 10],
+                iconAnchor: [5, 5]
+            });
+
+            var marker = L.marker([data.lat, data.lon], {icon: customIcon}).addTo(map);
+            
+            var polyline = L.polyline([[data.lat, data.lon], [HOME_LAT, HOME_LON]], {
+                color: eventColor, weight: 1, opacity: 0.6, dashArray: '5, 5', lineCap: 'round'
+            }).addTo(map);
+
+            setTimeout(() => { map.removeLayer(marker); map.removeLayer(polyline); }, 2000);
+
+            var tbody = document.getElementById('log-body');
+            var row = document.createElement('tr');
+            row.className = 'new-row';
+            row.style.color = eventColor; 
+            
+            var flag = getFlagEmoji(data.iso_code);
+
+            if (currentMode === 'traffic') {
+                var serviceDisplay = `${data.proto}/${data.dst_port}`;
+                row.innerHTML = `
+                    <td>${data.timestamp}</td>
+                    <td><span style="font-size:1.2rem; margin-right:5px;">${flag}</span>${data.country}</td>
+                    <td>${data.src_ip}</td>
+                    <td style="color:#00e5ff">${data.dst_host}</td>
+                    <td>${data.app}</td>
+                    <td>${serviceDisplay}</td>
+                `;
+            } else {
+                var severityClass = 'severity-' + data.severity.toLowerCase();
+                row.innerHTML = `
+                    <td>${data.timestamp}</td>
+                    <td><span style="font-size:1.2rem; margin-right:5px;">${flag}</span>${data.country}</td>
+                    <td>${data.src_ip}</td>
+                    <td style="color:#00e5ff">${data.dst_host}</td>
+                    <td style="font-size:0.7rem;">${data.threat_name}</td>
+                    <td><span class="severity-badge ${severityClass}">${data.severity}</span></td>
+                    <td>${data.threat_category}</td>
+                `;
+            }
+            
+            tbody.prepend(row);
+            if (tbody.children.length > 50) tbody.removeChild(tbody.lastChild);
+
+            if (countryStats[data.country]) { 
+                countryStats[data.country].count++; 
+            } else { 
+                countryStats[data.country] = { count: 1, code: data.iso_code }; 
+            }
+
+            if (targetStats[data.dst_host]) { 
+                targetStats[data.dst_host]++; 
+            } else { 
+                targetStats[data.dst_host] = 1; 
+            }
+            
+            if (currentMode === 'threat' && data.threat_category) {
+                if (threatCategoryStats[data.threat_category]) {
+                    threatCategoryStats[data.threat_category]++;
+                } else {
+                    threatCategoryStats[data.threat_category] = 1;
+                }
+            }
+            
+            updateLeaderboards();
+        });
+
+        function updateLeaderboards() {
+            if (currentMode === 'traffic') {
+                var sortedCountries = Object.keys(countryStats).sort((a,b) => countryStats[b].count - countryStats[a].count);
+                var redList = document.getElementById('country-list');
+                redList.innerHTML = "";
+                for (var i = 0; i < 10 && i < sortedCountries.length; i++) {
+                    var name = sortedCountries[i];
+                    var data = countryStats[name];
+                    var li = document.createElement('li');
+                    li.innerHTML = `<span><span class="flag">${getFlagEmoji(data.code)}</span> ${name}</span> <span class="count">${data.count}</span>`;
+                    redList.appendChild(li);
+                }
+            } else {
+                var sortedCategories = Object.keys(threatCategoryStats).sort((a,b) => threatCategoryStats[b] - threatCategoryStats[a]);
+                var redList = document.getElementById('country-list');
+                redList.innerHTML = "";
+                for (var i = 0; i < 10 && i < sortedCategories.length; i++) {
+                    var category = sortedCategories[i];
+                    var count = threatCategoryStats[category];
+                    var li = document.createElement('li');
+                    li.innerHTML = `<span>⚠️ ${category}</span> <span class="count">${count}</span>`;
+                    redList.appendChild(li);
+                }
+            }
+
+            var sortedTargets = Object.keys(targetStats).sort((a,b) => targetStats[b] - targetStats[a]);
+            var blueList = document.getElementById('target-list');
+            blueList.innerHTML = "";
+            for (var i = 0; i < 10 && i < sortedTargets.length; i++) {
+                var host = sortedTargets[i];
+                var count = targetStats[host];
+                var li = document.createElement('li');
+                li.innerHTML = `<span>🔹 ${host}</span> <span class="count">${count}</span>`;
+                blueList.appendChild(li);
+            }
+        }
+    </script>
+</body>
+</html>
