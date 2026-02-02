@@ -1,0 +1,80 @@
+# --- NETWORK CONFIGURATION ---
+server:
+  host: "0.0.0.0"
+  web_port: 8000
+  udp_ip: "0.0.0.0"
+  udp_port: 514
+  ssl_enabled: false   # Set to true to enable HTTPS
+  ssl_cert: "cert.pem" # Required if ssl_enabled is true
+  ssl_key: "key.pem"   # Required if ssl_enabled is true
+
+# --- GEOLOCATION & MAP ---
+geoip:
+  db_path: "GeoLite2-City.mmdb"
+
+home:
+  latitude: 36.0103   # REPLACE WITH YOUR DATACENTER LATITUDE
+  longitude: -84.2696 # REPLACE WITH YOUR DATACENTER LONGITUDE
+
+# --- DASHBOARD VISUALS ---
+dashboard:
+  title: "PaloPulse // LIVE"
+  subtitle: "REAL-TIME THREAT INTERCEPTION"
+
+# --- LOG TYPE CONFIGURATION ---
+log_types:
+  traffic_enabled: true   # Process TRAFFIC logs (deny/drop events)
+  threat_enabled: true    # Process THREAT logs (blocked malicious payloads)
+
+# --- ZONE FILTERING ---
+# Whitelist: Only traffic from these Source Zones will be displayed.
+# If you comment this out or leave it empty, ALL zones will be shown.
+# allowed_zones:
+#   - "Untrust"
+#   - "External"
+#   - "VPN-Users"
+
+# --- TRAFFIC LOG VISUALIZATION RULES ---
+# Map specific Rule Names (partial match) to colors for TRAFFIC logs.
+# Order matters: The script stops at the first match.
+# Default color is RED (#ff0055) if no match is found.
+rule_colors:
+  "#ffe100":  # Yellow (Geo/Policy)
+    - "Geo-Block"
+    - "Policy-Deny"
+    - "Sanctioned"
+  
+  "#bd00ff":  # Purple (Threats)
+    - "Malware"
+    - "Spyware"
+    - "Bad-Reputation"
+    - "Botnet"
+
+  "#00e5ff":  # Cyan (Admin/Legacy)
+    - "Block-Legacy"
+    - "Quarantine"
+
+# --- THREAT LOG SEVERITY COLORS ---
+# Maps threat severity levels to colors for THREAT logs.
+threat_colors:
+  critical: "#ff0000"     # Red
+  high: "#ff6600"         # Orange
+  medium: "#ffaa00"       # Yellow-Orange
+  low: "#4a90e2"          # Blue
+  informational: "#888888" # Gray
+
+# --- LOGGING CONFIGURATION ---
+# Application logging for troubleshooting and monitoring
+logging:
+  enabled: true                    # Enable/disable logging
+  file_path: "logs/dashboard.log"  # Log file location (directory created automatically)
+  max_size_mb: 5                   # Max size per file before rotating (MB)
+  backup_count: 3                  # Keep N previous log files (dashboard.log.1, .2, .3, etc)
+  level: "INFO"                    # Logging level: DEBUG, INFO, WARNING, ERROR, CRITICAL
+  
+  # Level Guide:
+  # - DEBUG: Extremely verbose (every event, DNS lookup, rule match) - use for troubleshooting
+  # - INFO: Normal operations (threats detected, stats, startup/shutdown) - recommended default
+  # - WARNING: Unexpected behavior (parsing failures, missing fields)
+  # - ERROR: Errors that don't stop the app (GeoIP failures, socket errors)
+  # - CRITICAL: Fatal errors that stop the application
